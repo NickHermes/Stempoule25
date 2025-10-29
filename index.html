@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Poule - punten, coalitie, datum</title>
+  <style>
+    :root{
+      --bg:#0b0c10; --card:#14161b; --muted:#8b93a7; --text:#e8ecf1;
+      --accent:#4aa3ff; --accent2:#6ce5b1; --error:#ff4d6d; --ok:#2ecc71;
+      --border:#222530; --radius:14px;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    .wrap{max-width:1000px;margin:0 auto;padding:16px}
+    header{position:sticky;top:0;z-index:10;background:linear-gradient(to bottom,rgba(11,12,16,.92),rgba(11,12,16,.75));
+      backdrop-filter:blur(6px);padding:10px 14px;border-bottom:1px solid var(--border)}
+    h1{font-size:1.1rem;margin:0}
+    .sub{color:var(--muted);font-size:.95rem}
+    .steps{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .step{padding:6px 10px;border:1px solid var(--border);border-radius:999px;color:var(--muted)}
+    .step.active{color:#001019;background:var(--accent);border-color:transparent;font-weight:600}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-top:12px}
+    .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+    input[type="text"],input[type="number"],input[type="date"],select{
+      padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#0f1116;color:var(--text)
+    }
+    .btn{padding:10px 14px;border:1px solid var(--border);background:#0f1116;color:var(--text);border-radius:10px;cursor:pointer}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .btn.primary{background:var(--accent);border-color:transparent;color:#001019;font-weight:600}
+    .btn.ghost{background:transparent}
+    .btn.flat{background:#10131a}
+    .pill{padding:6px 10px;border-radius:999px;background:#0f1116;border:1px solid var(--border);font-weight:600}
+    .pill.ok{background:rgba(46,204,113,.15);border-color:rgba(46,204,113,.35);color:#b9f4cf}
+    .pill.err{background:rgba(255,77,109,.1);border-color:rgba(255,77,109,.35);color:#ffc1cd}
+    .muted{color:var(--muted)}
+    .progress{height:10px;background:#0f1116;border:1px solid var(--border);border-radius:999px;overflow:hidden}
+    .progress > span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0%}
+
+    /* Stap 1 - lijst */
+    .row{display:grid;grid-template-columns:1fr 140px 100px;gap:10px;align-items:center;padding:10px;border-bottom:1px solid var(--border)}
+    .row:last-child{border-bottom:0}
+    .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .input-wrap{display:grid;grid-template-columns:1fr 36px 36px;gap:6px;align-items:center}
+    input[type=number]{appearance:textfield}
+    input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+    .pbar{height:8px;background:#0f1116;border:1px solid var(--border);border-radius:999px;overflow:hidden}
+    .pbar > span{display:block;height:100%;background:var(--accent);width:0%}
+
+    /* Stap 2 - drag */
+    .drag-wrap{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .zone{min-height:220px;border:2px dashed #2a2e3a;border-radius:12px;padding:10px;background:#10131a}
+    .zone.active{border-color:var(--accent)}
+    .chip{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--border);
+      border-radius:999px;background:#141823;margin:6px 0} 
+    .chip .tag{opacity:.8;font-size:.9rem}
+    .chip .pts{font-weight:700}
+    .chip .mini{display:flex;gap:6px}
+    .mini .btn{padding:6px 8px;font-size:.9rem}
+    .zones-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:6px}
+    .totline{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+
+    /* Stap 3 */
+    .datebox{display:grid;grid-template-columns:1fr 220px;gap:10px;align-items:end}
+
+    /* Nav */
+    .nav{display:flex;justify-content:space-between;gap:8px;margin-top:14px}
+    .left,.right{display:flex;gap:8px;flex-wrap:wrap}
+
+    @media (max-width:800px){
+      .row{grid-template-columns:1fr 120px 88px}
+      .drag-wrap{grid-template-columns:1fr}
+      .datebox{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div class="wrap" style="padding:0 14px">
+    <h1>Poule - verdeel punten, kies coalitie, kies datum</h1>
+    <div class="sub">Stap 1: 150 punten verdelen. Stap 2: sleep coalitie. Stap 3: datum nieuwe verkiezingen.</div>
+    <div class="steps">
+      <span id="s1" class="step active">1 Punten</span>
+      <span id="s2" class="step">2 Coalitie</span>
+      <span id="s3" class="step">3 Datum</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- STAP 1 -->
+  <section id="step1" class="card">
+    <div class="controls">
+      <input id="name" type="text" placeholder="Jouw naam of ID" style="flex:1;min-width:180px">
+      <input id="filter" type="text" placeholder="Zoek partij..." style="flex:2;min-width:200px">
+      <select id="sort" aria-label="Sorteer">
+        <option value="name">Sorteer op naam</option>
+        <option value="points">Sorteer op punten</option>
+      </select>
+      <button class="btn flat" id="even">Verdeel resterend gelijk</button>
+      <button class="btn ghost" id="reset">Alles op nul</button>
+    </div>
+
+    <div class="totline">
+      <span class="pill">Totaal: <strong id="total">0</strong> / 150</span>
+      <span class="pill" id="remainPill">Resterend: <strong id="remaining">150</strong></span>
+      <span id="s1status" class="pill err">Nog niet geldig</span>
+    </div>
+    <div class="progress" aria-hidden="true" style="margin:8px 0 12px"><span id="progress" style="width:0%"></span></div>
+
+    <div id="list"></div>
+
+    <div class="nav">
+      <div class="left">
+        <button class="btn" id="dl1">Download CSV (tussenstand)</button>
+      </div>
+      <div class="right">
+        <button class="btn primary" id="toStep2" disabled>Verder naar coalitie</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- STAP 2 -->
+  <section id="step2" class="card" style="display:none">
+    <div class="zones-head">
+      <div><strong>Sleep partijen naar coalitie</strong> <span class="muted">(tik op + om toe te voegen)</span></div>
+      <div class="totline">
+        <span class="pill">Coalitie punten: <strong id="coalPts">0</strong></span>
+        <span class="pill">Niet in coalitie: <strong id="nonCoalPts">0</strong></span>
+      </div>
+    </div>
+    <div class="drag-wrap">
+      <div>
+        <div class="muted" style="margin:6px 0">Beschikbaar</div>
+        <div id="zonePool" class="zone" aria-label="Beschikbare partijen"></div>
+      </div>
+      <div>
+        <div class="muted" style="margin:6px 0">Coalitie</div>
+        <div id="zoneCoal" class="zone" aria-label="Coalitie dropzone"></div>
+      </div>
+    </div>
+    <div class="nav">
+      <div class="left">
+        <button class="btn" id="back1">Terug naar punten</button>
+      </div>
+      <div class="right">
+        <button class="btn primary" id="toStep3">Verder naar datum</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- STAP 3 -->
+  <section id="step3" class="card" style="display:none">
+    <div class="datebox">
+      <div>
+        <label for="dateGuess">Wanneer denk je dat er nieuwe verkiezingen komen?</label>
+        <input id="dateGuess" type="date">
+        <div class="muted" style="margin-top:6px">Kies een datum. Je kunt dit later nog aanpassen voor inzenden.</div>
+      </div>
+      <div>
+        <div class="pill">Naam: <span id="nameEcho" style="font-weight:700;margin-left:6px"></span></div>
+        <div class="pill" style="margin-top:8px">Coalitie: <span id="coalEcho" style="font-weight:700;margin-left:6px"></span></div>
+      </div>
+    </div>
+
+    <div class="nav">
+      <div class="left">
+        <button class="btn" id="back2">Terug naar coalitie</button>
+      </div>
+      <div class="right">
+        <button class="btn" id="download">Download CSV</button>
+        <button class="btn primary" id="submit">Inzenden</button>
+      </div>
+    </div>
+    <p class="muted" style="margin:8px 2px">Inzenden downloadt een CSV of post naar je webhook, afhankelijk van de instelling.</p>
+  </section>
+</div>
+
+<script>
+  // Config
+  const TARGET = 150;
+  const SUBMIT_MODE = "download"; // "download" of "webhook"
+  const WEBHOOK_URL = ""; // invullen als SUBMIT_MODE = "webhook"
+  const OPTIONS = [
+    "PVV","GroenLinks-PvdA","VVD","NSC","D66","BBB","CDA","SP","DENK","PvdD",
+    "FVD","SGP","ChristenUnie","Volt","JA21","Vrede voor Dieren","BVNL","BIJ1",
+    "LP","50PLUS","Piratenpartij","FNP","Vrij Verbond","DE LINIE","NL PLAN","ELLECT","Partij voor de Rechtsstaat"
+  ];
+  const STORAGE_KEY = "poule_v2_state";
+
+  // Elements
+  const $name = document.getElementById("name");
+  const $filter = document.getElementById("filter");
+  const $sort = document.getElementById("sort");
+  const $even = document.getElementById("even");
+  const $reset = document.getElementById("reset");
+  const $total = document.getElementById("total");
+  const $remaining = document.getElementById("remaining");
+  const $progress = document.getElementById("progress");
+  const $s1status = document.getElementById("s1status");
+  const $list = document.getElementById("list");
+  const $toStep2 = document.getElementById("toStep2");
+  const $dl1 = document.getElementById("dl1");
+
+  const $step1 = document.getElementById("step1");
+  const $step2 = document.getElementById("step2");
+  const $step3 = document.getElementById("step3");
+  const $s1 = document.getElementById("s1");
+  const $s2 = document.getElementById("s2");
+  const $s3 = document.getElementById("s3");
+
+  const $zonePool = document.getElementById("zonePool");
+  const $zoneCoal = document.getElementById("zoneCoal");
+  const $coalPts = document.getElementById("coalPts");
+  const $nonCoalPts = document.getElementById("nonCoalPts");
+  const $back1 = document.getElementById("back1");
+  const $toStep3 = document.getElementById("toStep3");
+
+  const $dateGuess = document.getElementById("dateGuess");
+  const $nameEcho = document.getElementById("nameEcho");
+  const $coalEcho = document.getElementById("coalEcho");
+  const $back2 = document.getElementById("back2");
+  const $download = document.getElementById("download");
+  const $submit = document.getElementById("submit");
+
+  // State
+  let values = OPTIONS.map(_ => 0);
+  let order = OPTIONS.map((_,i)=>i);
+  let coalition = new Set(); // store option indices
+
+  // restore
+  try{
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    if (saved && Array.isArray(saved.values) && saved.values.length === OPTIONS.length){
+      values = saved.values.map(v=>parseInt(v||0,10)||0);
+    }
+    if (saved && typeof saved.name === "string") $name.value = saved.name;
+    if (saved && Array.isArray(saved.coalition)) coalition = new Set(saved.coalition);
+    if (saved && typeof saved.dateGuess === "string") $dateGuess.value = saved.dateGuess;
+  }catch(e){}
+
+  function save(){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      name:$name.value.trim(),
+      values,
+      coalition:[...coalition],
+      dateGuess:$dateGuess.value || ""
+    }));
+  }
+
+  // utils
+  function sum(arr){ return arr.reduce((a,b)=>a+b,0); }
+  function pct(v, max){ return Math.max(0, Math.min(100, Math.round((v/max)*100))); }
+  function clampForIdx(idx, newV){
+    const others = sum(values) - values[idx];
+    const allowed = Math.max(0, TARGET - others);
+    return Math.max(0, Math.min(allowed, newV|0));
+  }
+
+  // step 1 rendering
+  function rowTemplate(name, idx){
+    const row = document.createElement("div");
+    row.className = "row";
+    row.dataset.idx = String(idx);
+    const current = values[idx]||0;
+    row.innerHTML = `
+      <div class="name">${name}</div>
+      <div class="input-wrap">
+        <input type="number" inputmode="numeric" pattern="[0-9]*" min="0" step="1" value="${current}" aria-label="Punten voor ${name}">
+        <button class="btn ghost plus" title="+1">+1</button>
+        <button class="btn ghost minus" title="-1">-1</button>
+      </div>
+      <div class="pbar" aria-hidden="true"><span style="width:${pct(current,TARGET)}%"></span></div>
+    `;
+    const input = row.querySelector('input[type="number"]');
+    const plus = row.querySelector('.plus');
+    const minus = row.querySelector('.minus');
+
+    function apply(nv){
+      const fixed = clampForIdx(idx, nv);
+      values[idx] = fixed;
+      input.value = String(fixed);
+      row.querySelector('.pbar > span').style.width = pct(fixed, TARGET) + "%";
+      renderTotals();
+      save();
+      if ($step2.style.display !== "none") renderCoalitionZones(); // live update step 2 balkjes
+    }
+    input.addEventListener("input",()=>apply(parseInt(input.value||"0",10)||0));
+    plus.addEventListener("click",()=>apply((parseInt(input.value||"0",10)||0)+1));
+    minus.addEventListener("click",()=>apply((parseInt(input.value||"0",10)||0)-1));
+
+    return row;
+  }
+
+  function renderList(){
+    $list.innerHTML = "";
+    const q = $filter.value.trim().toLowerCase();
+    const indices = order.filter(i => OPTIONS[i].toLowerCase().includes(q));
+    indices.forEach(i => $list.appendChild(rowTemplate(OPTIONS[i], i)));
+  }
+
+  function renderTotals(){
+    const s = sum(values);
+    const rem = TARGET - s;
+    $total.textContent = String(s);
+    $remaining.textContent = String(rem);
+    $progress.style.width = pct(s, TARGET) + "%";
+    const ok = s === TARGET && $name.value.trim().length > 0;
+    $s1status.textContent = ok ? "Klaar om door te gaan" : "Nog niet geldig";
+    $s1status.classList.toggle("ok", ok);
+    $s1status.classList.toggle("err", !ok);
+    $toStep2.disabled = !ok;
+  }
+
+  function redistribute(){
+    let rem = TARGET - sum(values);
+    if (rem <= 0) return;
+    const indices = order.slice();
+    let k = 0;
+    while (rem > 0 && indices.length > 0){
+      const i = indices[k % indices.length];
+      const allowed = clampForIdx(i, values[i]+1);
+      if (allowed > values[i]){ values[i] = allowed; rem--; }
+      k++;
+    }
+    renderList(); renderTotals(); save(); if ($step2.style.display!=="none") renderCoalitionZones();
+  }
+
+  function resetAll(){
+    values = OPTIONS.map(_=>0);
+    coalition.clear();
+    renderList(); renderTotals(); renderCoalitionZones(); save();
+  }
+
+  function sortChange(){
+    if ($sort.value === "name"){
+      order = OPTIONS.map((_,i)=>i).sort((a,b)=>OPTIONS[a].localeCompare(OPTIONS[b],'nl',{sensitivity:'base'}));
+    } else {
+      order = OPTIONS.map((_,i)=>i).sort((a,b)=>values[b]-values[a] || OPTIONS[a].localeCompare(OPTIONS[b],'nl',{sensitivity:'base'}));
+    }
+    renderList();
+  }
+
+  // step 2 - drag and pools
+  function chip(idx){
+    const el = document.createElement("div");
+    el.className = "chip";
+    el.draggable = true;
+    el.dataset.idx = String(idx);
+    el.innerHTML = `
+      <span><strong>${OPTIONS[idx]}</strong> <span class="tag">(<span class="pts">${values[idx]}</span>)</span></span>
+      <span class="mini">
+        <button class="btn flat add">+</button>
+        <button class="btn ghost rem">−</button>
+      </span>
+    `;
+    // drag events
+    el.addEventListener("dragstart",(e)=>{ e.dataTransfer.setData("text/plain", String(idx)); });
+    // tap buttons as fallback
+    el.querySelector(".add").addEventListener("click",()=>{ coalition.add(idx); renderCoalitionZones(); save(); });
+    el.querySelector(".rem").addEventListener("click",()=>{
+      coalition.delete(idx); renderCoalitionZones(); save();
+    });
+    return el;
+  }
+
+  function setupDropZone(zone, onDrop){
+    zone.addEventListener("dragover",(e)=>{ e.preventDefault(); zone.classList.add("active"); });
+    zone.addEventListener("dragleave",()=> zone.classList.remove("active"));
+    zone.addEventListener("drop",(e)=>{
+      e.preventDefault();
+      zone.classList.remove("active");
+      const idx = parseInt(e.dataTransfer.getData("text/plain")||"-1",10);
+      if (Number.isInteger(idx) && idx >= 0) onDrop(idx);
+    });
+  }
+
+  function renderCoalitionZones(){
+    $zonePool.innerHTML = "";
+    $zoneCoal.innerHTML = "";
+    const indices = order.slice();
+    indices.forEach(i => {
+      const c = chip(i);
+      const ptsEl = c.querySelector(".pts");
+      ptsEl.textContent = String(values[i]); // live reflect points
+      if (coalition.has(i)){
+        $zoneCoal.appendChild(c);
+      } else {
+        $zonePool.appendChild(c);
+      }
+    });
+    const coalPoints = [...coalition].reduce((s,i)=>s+values[i],0);
+    $coalPts.textContent = String(coalPoints);
+    $nonCoalPts.textContent = String(TARGET - coalPoints);
+  }
+
+  setupDropZone($zonePool, (idx)=>{ coalition.delete(idx); renderCoalitionZones(); save(); });
+  setupDropZone($zoneCoal, (idx)=>{ coalition.add(idx); renderCoalitionZones(); save(); });
+
+  // step 3 helpers
+  function coalitionNames(){ return [...coalition].map(i=>OPTIONS[i]); }
+  function updateEcho(){
+    $nameEcho.textContent = $name.value.trim() || "anoniem";
+    $coalEcho.textContent = coalitionNames().join(", ") || "geen";
+  }
+
+  // CSV and submit
+  function csvData(){
+    const headers = [
+      "name","timestamp",
+      ...OPTIONS.map(p => `pts_${p.replace(/[^A-Za-z0-9]/g,"_")}`),
+      "coalition","coalition_points","election_date"
+    ];
+    const coalList = coalitionNames().join(";");
+    const coalPts = [...coalition].reduce((s,i)=>s+values[i],0);
+    const row = [
+      $name.value.trim(),
+      new Date().toISOString(),
+      ...OPTIONS.map((_,i)=>values[i]),
+      coalList,
+      coalPts,
+      $dateGuess.value || ""
+    ];
+    return [headers.join(","), row.join(",")].join("\n");
+  }
+
+  function downloadCSV(){
+    const csv = csvData();
+    const blob = new Blob([csv], { type:"text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeName = ($name.value.trim() || "anoniem").replace(/\s+/g,"_").replace(/[^\w\-]+/g,"");
+    a.href = url; a.download = `poule_${safeName}.csv`;
+    document.body.appendChild(a); a.click(); URL.revokeObjectURL(url); a.remove();
+  }
+
+  async function submitAll(){
+    const payload = {
+      name: $name.value.trim(),
+      timestamp: new Date().toISOString(),
+      allocation: Object.fromEntries(OPTIONS.map((k,i)=>[k,values[i]])),
+      coalition: coalitionNames(),
+      coalition_points: [...coalition].reduce((s,i)=>s+values[i],0),
+      election_date: $dateGuess.value || ""
+    };
+    if (SUBMIT_MODE === "webhook" && WEBHOOK_URL){
+      try{
+        $submit.disabled = true;
+        await fetch(WEBHOOK_URL,{method:"POST",headers:{ "Content-Type":"application/json" },body:JSON.stringify(payload)});
+        alert("Bedankt. Je inzending is ontvangen.");
+        resetAll();
+        $dateGuess.value = "";
+        save();
+        // terug naar stap 1
+        gotoStep(1);
+      }catch(e){
+        alert("Verzenden mislukt. Controleer je verbinding of probeer later.");
+        $submit.disabled = false;
+      }
+    } else {
+      downloadCSV();
+    }
+  }
+
+  // step nav
+  function setStepDots(n){
+    [$s1,$s2,$s3].forEach((el,i)=> el.classList.toggle("active", i===n-1));
+  }
+  function gotoStep(n){
+    $step1.style.display = n===1 ? "" : "none";
+    $step2.style.display = n===2 ? "" : "none";
+    $step3.style.display = n===3 ? "" : "none";
+    setStepDots(n);
+    if (n===2){ renderCoalitionZones(); }
+    if (n===3){ updateEcho(); }
+    window.scrollTo({top:0,behavior:"smooth"});
+  }
+
+  // events
+  $filter.addEventListener("input", renderList);
+  $sort.addEventListener("change", sortChange);
+  $even.addEventListener("click", redistribute);
+  $reset.addEventListener("click", resetAll);
+  $name.addEventListener("input", ()=>{ renderTotals(); save(); });
+  $dl1.addEventListener("click", downloadCSV);
+
+  $toStep2.addEventListener("click", ()=> gotoStep(2));
+  $back1.addEventListener("click", ()=> gotoStep(1));
+  $toStep3.addEventListener("click", ()=> {
+    // geen harde eisen op coalitie, maar je kunt hier een regel afdwingen als je wilt
+    gotoStep(3);
+  });
+  $back2.addEventListener("click", ()=> gotoStep(2));
+
+  $download.addEventListener("click", downloadCSV);
+  $submit.addEventListener("click", ()=>{
+    // validaties
+    if (sum(values) !== TARGET){ alert("Het totaal moet precies 150 zijn."); gotoStep(1); return; }
+    if ($name.value.trim().length === 0){ alert("Vul je naam of ID in."); gotoStep(1); return; }
+    submitAll();
+  });
+
+  $dateGuess.addEventListener("change", ()=>{ save(); updateEcho(); });
+
+  // init
+  function init(){
+    sortChange();
+    renderTotals();
+  }
+  init();
+</script>
+</body>
+</html>
