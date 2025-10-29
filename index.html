@@ -24,7 +24,7 @@
     .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-top:12px}
     .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
     input[type="text"],input[type="number"],input[type="date"],select{
-      padding:12px; border-radius:10px; border:1px solid var(--border); background:#0f1116; color:var(--text); font-size:16px; /* 16px voorkomt iOS zoom */
+      padding:12px; border-radius:10px; border:1px solid var(--border); background:#0f1116; color:var(--text); font-size:16px;
     }
     .btn{padding:12px 14px;border:1px solid var(--border);background:#0f1116;color:var(--text);border-radius:10px;cursor:pointer;font-size:16px}
     .btn:disabled{opacity:.6;cursor:not-allowed}
@@ -38,10 +38,10 @@
     .progress{height:10px;background:#0f1116;border:1px solid var(--border);border-radius:999px;overflow:hidden}
     .progress > span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0%}
 
-    /* Stap 1 lijst: 2 rijen, balk onderaan */
+    /* Stap 1 lijst - 2 rijen, balk onderaan */
     .row{
       display:grid;
-      grid-template-columns: 1fr 140px 100px;
+      grid-template-columns: 1fr 160px 120px;
       grid-template-rows: auto 8px;
       grid-template-areas:
         "name input input"
@@ -50,18 +50,36 @@
       align-items:center;
       padding:12px 10px;
       border-bottom:1px solid var(--border);
+      overflow:hidden; /* knoppen blijven binnen de rij */
     }
     .row:last-child{ border-bottom:0; }
     .name{ grid-area:name; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .input-wrap{
       grid-area:input;
       display:grid;
-      grid-template-columns:1fr 40px 40px;
+      grid-template-columns: 1fr 48px 48px; /* voldoende ruimte voor knoppen */
       gap:6px;
       align-items:center;
+      min-width:0;
     }
+    .input-wrap input{min-width:0} /* voorkomt overflow van het nummer veld */
+
+    /* Vierkante knoppen voor +1 en -1 die niet uit de rij steken */
+    .btn-square{
+      width:100%;
+      height:44px;      /* goede tikdoelgrootte op mobiel */
+      padding:0;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      line-height:1;
+      font-weight:700;
+    }
+
     input[type=number]{appearance:textfield}
-    input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+
     .pbar{
       grid-area:bar;
       height:8px;
@@ -96,9 +114,18 @@
     .empty{padding:12px;border:1px solid var(--border);border-radius:12px;background:#10131a;color:var(--muted)}
 
     @media (max-width:800px){
-      .row{grid-template-columns: 1fr 120px 88px}
+      .row{
+        grid-template-columns: 1fr 140px 110px;
+      }
       .drag-wrap{grid-template-columns:1fr}
       .datebox{grid-template-columns:1fr}
+    }
+    @media (max-width:560px){
+      .row{
+        grid-template-columns: 1fr 130px 100px;
+      }
+      .input-wrap{ grid-template-columns: 1fr 48px 48px; }
+      .btn-square{ height:42px; }
     }
     @media (prefers-reduced-motion: reduce){
       *{scroll-behavior:auto}
@@ -222,7 +249,7 @@
     "FVD","SGP","ChristenUnie","Volt","JA21","Vrede voor Dieren","BVNL","BIJ1",
     "LP","50PLUS","Piratenpartij","FNP","Vrij Verbond","DE LINIE","NL PLAN","ELLECT","Partij voor de Rechtsstaat"
   ];
-  const STORAGE_KEY = "poule_v3_state";
+  const STORAGE_KEY = "poule_v4_state";
 
   // Elements
   const $name = document.getElementById("name");
@@ -276,7 +303,7 @@
     if (saved && typeof saved.name === "string") $name.value = saved.name;
     if (saved && Array.isArray(saved.coalition)) coalition = new Set(saved.coalition);
     if (saved && typeof saved.dateGuess === "string") $dateGuess.value = saved.dateGuess;
-    if (saved && typeof saved.filter === "string") $filter.value = saved.filter; // kan de lijst leeg houden
+    if (saved && typeof saved.filter === "string") $filter.value = saved.filter;
   }catch(e){}
 
   function save(){
@@ -298,7 +325,7 @@
     return Math.max(0, Math.min(allowed, newV|0));
   }
 
-  // step 1 rendering
+  // stap 1 rendering
   function rowTemplate(name, idx){
     const row = document.createElement("div");
     row.className = "row";
@@ -308,8 +335,8 @@
       <div class="name">${name}</div>
       <div class="input-wrap">
         <input type="number" inputmode="numeric" pattern="[0-9]*" min="0" step="1" value="${current}" aria-label="Punten voor ${name}">
-        <button class="btn ghost plus" title="+1">+1</button>
-        <button class="btn ghost minus" title="-1">-1</button>
+        <button class="btn btn-square ghost plus" title="+1">+1</button>
+        <button class="btn btn-square ghost minus" title="-1">-1</button>
       </div>
       <div class="pbar" aria-hidden="true"><span style="width:${pct(current,TARGET)}%"></span></div>
     `;
@@ -387,7 +414,7 @@
     renderList();
   }
 
-  // step 2 - drag and tap
+  // stap 2 - drag en tap
   function chip(idx){
     const el = document.createElement("div");
     el.className = "chip";
@@ -400,17 +427,13 @@
         <button class="btn ghost rem" title="Verwijder">−</button>
       </span>
     `;
-    // drag events
     el.addEventListener("dragstart",(e)=>{ e.dataTransfer.setData("text/plain", String(idx)); });
-    // tap-to-toggle for mobile
     el.addEventListener("click",(e)=>{
-      // klik op chip zelf togglet; knoppen hebben eigen acties
       if (e.target.closest(".add")) return;
       if (e.target.closest(".rem")) return;
       if (coalition.has(idx)) coalition.delete(idx); else coalition.add(idx);
       renderCoalitionZones(); save();
     });
-    // buttons
     el.querySelector(".add").addEventListener("click",()=>{ coalition.add(idx); renderCoalitionZones(); save(); });
     el.querySelector(".rem").addEventListener("click",()=>{ coalition.delete(idx); renderCoalitionZones(); save(); });
     return el;
@@ -444,14 +467,14 @@
   setupDropZone($zonePool, (idx)=>{ coalition.delete(idx); renderCoalitionZones(); save(); });
   setupDropZone($zoneCoal, (idx)=>{ coalition.add(idx); renderCoalitionZones(); save(); });
 
-  // step 3
+  // stap 3
   const coalitionNames = () => [...coalition].map(i=>OPTIONS[i]);
   function updateEcho(){
     $nameEcho.textContent = $name.value.trim() || "anoniem";
     $coalEcho.textContent = coalitionNames().join(", ") || "geen";
   }
 
-  // CSV and submit
+  // CSV en submit
   function csvData(){
     const headers = [
       "name","timestamp",
@@ -546,7 +569,6 @@
 
   // init
   function init(){
-    // Als de filter uit storage alles verbergt, toon dan empty state met duidelijke call to action
     sortChange();
     renderTotals();
     if ($list.children.length === 0) $emptyMsg.style.display = "";
